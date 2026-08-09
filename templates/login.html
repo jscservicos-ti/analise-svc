@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Acesso Seguro - Análise SVC</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { display: flex; background-color: #0f172a; color: #1e293b; height: 100vh; align-items: center; justify-content: center;}
+
+        .login-card { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center;}
+        .login-card h2 { margin-bottom: 30px; color: #0f172a; display: flex; align-items: center; justify-content: center; gap: 10px;}
+        
+        .form-group { display: flex; flex-direction: column; text-align: left; margin-bottom: 20px;}
+        .form-group label { font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 8px;}
+        .form-group input { padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; outline:none; transition: 0.2s;}
+        .form-group input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.2);}
+        
+        .btn-login { background: #0ea5e9; color: white; padding: 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; transition: 0.2s; margin-top: 10px;}
+        .btn-login:hover { background: #0284c7; }
+        
+        .erro { background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; font-weight: bold; border: 1px solid #fecaca;}
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <h2>⚡ Análise SVC</h2>
+        
+        {% if erro %}
+            <div class="erro">❌ {{ erro }}</div>
+        {% endif %}
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label>Usuário</label>
+                <input type="text" name="login" placeholder="Digite seu usuário..." required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" name="senha" placeholder="Digite sua senha..." required>
+            </div>
+            <button type="submit" class="btn-login">Entrar no Sistema</button>
+        </form>
+    </div>
+
+</body>
+</html>

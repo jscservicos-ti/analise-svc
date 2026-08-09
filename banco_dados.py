@@ -19,6 +19,15 @@ def init_db():
         )
     ''')
     
+    # Cria o usuário padrão se não existir nenhum
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    if cursor.fetchone()[0] == 0:
+        id_admin = str(uuid.uuid4())
+        cursor.execute('''
+            INSERT INTO usuarios (id, nome, login, senha, permissao)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (id_admin, 'Administrador', 'admin', 'admin123', 'admin'))
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS medicoes (
             id TEXT PRIMARY KEY,
@@ -48,6 +57,14 @@ def init_db():
     
     conn.commit()
     conn.close()
+
+def validar_login(login, senha):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT nome FROM usuarios WHERE login=? AND senha=?", (login, senha))
+    user = cursor.fetchone()
+    conn.close()
+    return user[0] if user else None
 
 def salvar_planilha_sql(df, lote_nome, svc_nome):
     conn = sqlite3.connect(DB_NAME)
@@ -176,8 +193,6 @@ def buscar_logs_troca(lote, svc):
     conn.close()
     return dados
 
-# --- MOTOR DE SINCRONIZAÇÃO EDGE-TO-CLOUD ---
-
 def obter_dados_nao_sincronizados():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
@@ -203,7 +218,6 @@ def marcar_como_sincronizados(medicoes_ids, trocas_ids):
     conn.close()
 
 def obter_todos_dados_nuvem():
-    """Função executada apenas no servidor Ubuntu para enviar tudo para o Notebook."""
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -215,7 +229,6 @@ def obter_todos_dados_nuvem():
     return {"medicoes": medicoes, "trocas": trocas}
 
 def mesclar_dados_recebidos(dados):
-    """Insere ou substitui os dados localmente garantindo que ambos os lados fiquem iguais."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
