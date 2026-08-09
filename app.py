@@ -7,20 +7,18 @@ import urllib.request
 import json
 
 app = Flask(__name__)
-# Chave de segurança para criptografar os cookies de sessão
 app.secret_key = 'jsc_secreta_2026_seguranca_maxima'
 
 banco_dados.init_db()
 
 SERVIDOR_NUVEM_URL = "https://svc.jscsaude.com.br"
 
-# ==============================================================================
-# SISTEMA DE SEGURANÇA E LOGIN
-# ==============================================================================
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'usuario_logado' not in session:
+        # Validação extra: se o cookie antigo estiver salvo como string, limpa para evitar erros
+        if 'usuario_logado' not in session or not isinstance(session['usuario_logado'], dict):
+            session.clear()
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -42,16 +40,15 @@ def login():
 
 @app.route('/logout')
 def logout():
-    session.pop('usuario_logado', None)
+    session.clear()
     return redirect(url_for('login'))
 
-
-# ==============================================================================
-# ROTAS PROTEGIDAS DO SISTEMA
-# ==============================================================================
 @app.route('/')
 @login_required
 def index():
+    # Bloqueia perfil Consulta de ver a tela de importação
+    if session['usuario_logado']['permissao'] == 'consulta':
+        return redirect(url_for('historico'))
     return render_template('index.html')
 
 @app.route('/diagrama')
@@ -64,36 +61,69 @@ def diagrama():
 def historico():
     return render_template('historico.html')
 
+# --- ROTAS DE GESTÃO DE USUÁRIOS ---
+@app.route('/usuarios')
+@login_required
+def usuarios():
+    if session['usuario_logado']['permissao'] != 'adm':
+        return redirect(url_for('historico'))
+    return render_template('usuarios.html')
+
+@app.route('/api/usuarios', methods=['GET'])
+@login_required
+def get_usuarios():
+    if session['usuario_logado']['permissao'] != 'adm':
+        return jsonify({"error": "Acesso negado."}), 403
+    return jsonify(banco_dados.listar_usuarios())
+
+@app.route('/api/usuarios', methods=['POST'])
+@login_required
+def add_usuario():
+    if session['usuario_logado']['permissao'] != 'adm':
+        return jsonify({"error": "Acesso negado."}), 403
+    data = request.json
+    sucesso, msg = banco_dados.criar_usuario(data['nome'], data['login'], data['permissao'])
+    if sucesso:
+        return jsonify({"message": msg})
+    return jsonify({"error": msg}), 400
+
+@app.route('/api/usuarios', methods=['DELETE'])
+@login_required
+def delete_usuario():
+    if session['usuario_logado']['permissao'] != 'adm':
+        return jsonify({"error": "Acesso negado."}), 403
+    data = request.json
+    if data['id'] == session['usuario_logado']['id']:
+        return jsonify({"error": "Você não pode excluir seu próprio usuário."}), 400
+    banco_dados.excluir_usuario(data['id'])
+    return jsonify({"message": "Usuário excluído!"})
+
+# --- ROTAS DE DADOS COM BLOQUEIOS DE PERFIL ---
 @app.route('/upload', methods=['POST'])
 @app.route('/api/upload', methods=['POST'])
 @app.route('/importar', methods=['POST'])
 @login_required
 def upload_file():
+    if session['usuario_logado']['permissao'] == 'consulta':
+        return jsonify({"error": "Acesso negado para o seu perfil."}), 403
+    
     try:
-        if len(request.files) == 0:
-            return jsonify({"error": "Nenhum arquivo recebido"}), 400
-            
+        if len(request.files) == 0: return jsonify({"error": "Nenhum arquivo"}), 400
         file_key = list(request.files.keys())[0]
         file = request.files[file_key]
         lote = request.form.get('lote', 'Sem Nome')
         svc = request.form.get('svc', 'SVC1')
         
-        if file.filename == '':
-            return jsonify({"error": "Arquivo vazio"}), 400
-
-        if file.filename.lower().endswith('.txt'):
-            df = pd.read_csv(file, sep='\t', encoding='latin1')
-        elif file.filename.lower().endswith(('.xls', '.xlsx')):
-             df = pd.read_excel(file)
-        else:
-            return jsonify({"error": "Formato não suportado."}), 400
+        if file.filename == '': return jsonify({"error": "Arquivo vazio"}), 400
+        if file.filename.lower().endswith('.txt'): df = pd.read_csv(file, sep='\t', encoding='latin1')
+        elif file.filename.lower().endswith(('.xls', '.xlsx')): df = pd.read_excel(file)
+        else: return jsonify({"error": "Formato não suportado."}), 400
 
         banco_dados.salvar_planilha_sql(df, lote, svc)
         return jsonify({"message": f"Arquivo importado com sucesso!"})
-        
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+        return jsonify({"error": f"Erro: {str(e)}"}), 500
 
 @app.route('/api/lotes', methods=['GET'])
 @login_required
@@ -112,6 +142,8 @@ def get_diagrama_dados():
 @app.route('/api/troca', methods=['POST'])
 @login_required
 def realizar_troca():
+    if session['usuario_logado']['permissao'] == 'consulta':
+        return jsonify({"error": "O perfil de Consulta não pode realizar alterações no diagrama."}), 403
     data = request.json
     try:
         banco_dados.efetivar_troca(data['lote'], data['svc'], data['harmonica'], data['cap1'], data['cap2'])
@@ -127,6 +159,8 @@ def get_historico():
 @app.route('/api/lotes', methods=['DELETE'])
 @login_required
 def delete_lote():
+    if session['usuario_logado']['permissao'] != 'adm':
+        return jsonify({"error": "Apenas administradores podem excluir medições."}), 403
     data = request.json
     try:
         banco_dados.excluir_lote(data['lote'], data['svc'])
@@ -143,15 +177,11 @@ def get_dados_completos():
 def get_logs_trocas():
     return jsonify(banco_dados.buscar_logs_troca(request.args.get('lote'), request.args.get('svc')))
 
-# ==============================================================================
-# ENDPOINTS DE SINCRONIZAÇÃO (Sem Login Required para permitir API máquina a máquina)
-# ==============================================================================
+# --- ENDPOINTS DE SINCRONIZAÇÃO ---
 @app.route('/api/sync/executar', methods=['POST'])
 @login_required
 def executar_sincronizacao():
-    if not SERVIDOR_NUVEM_URL:
-        return jsonify({"error": "URL não configurada."}), 400
-
+    if not SERVIDOR_NUVEM_URL: return jsonify({"error": "URL não configurada."}), 400
     try:
         dados_locais = banco_dados.obter_dados_nao_sincronizados()
         ids_med = [m['id'] for m in dados_locais['medicoes']]
@@ -170,7 +200,6 @@ def executar_sincronizacao():
             dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
             
         banco_dados.mesclar_dados_recebidos(dados_nuvem)
-
         return jsonify({"message": "Sincronizado com sucesso!"})
     except Exception as e:
         traceback.print_exc()

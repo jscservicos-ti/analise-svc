@@ -19,14 +19,18 @@ def init_db():
         )
     ''')
     
-    # Cria o usuário padrão se não existir nenhum
+    # --- VACINA DE CORREÇÃO ---
+    # Transforma o usuário criado na versão anterior de 'admin' para 'adm'
+    cursor.execute("UPDATE usuarios SET permissao = 'adm' WHERE permissao = 'admin'")
+    # --------------------------
+    
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
         id_admin = str(uuid.uuid4())
         cursor.execute('''
             INSERT INTO usuarios (id, nome, login, senha, permissao)
             VALUES (?, ?, ?, ?, ?)
-        ''', (id_admin, 'Administrador', 'admin', 'admin123', 'admin'))
+        ''', (id_admin, 'Administrador', 'admin', 'admin123', 'adm'))
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS medicoes (
@@ -61,10 +65,48 @@ def init_db():
 def validar_login(login, senha):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT nome FROM usuarios WHERE login=? AND senha=?", (login, senha))
+    cursor.execute("SELECT id, nome, login, permissao FROM usuarios WHERE login=? AND senha=?", (login, senha))
     user = cursor.fetchone()
     conn.close()
-    return user[0] if user else None
+    if user:
+        return {"id": user[0], "nome": user[1], "login": user[2], "permissao": user[3]}
+    return None
+
+def listar_usuarios():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nome, login, permissao FROM usuarios ORDER BY nome")
+    cols = ['id', 'nome', 'login', 'permissao']
+    dados = [dict(zip(cols, row)) for row in cursor.fetchall()]
+    conn.close()
+    return dados
+
+def criar_usuario(nome, login, permissao):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id FROM usuarios WHERE login=?", (login,))
+        if cursor.fetchone():
+            return False, "O código de usuário (login) já existe."
+        
+        id_uuid = str(uuid.uuid4())
+        cursor.execute('''
+            INSERT INTO usuarios (id, nome, login, senha, permissao)
+            VALUES (?, ?, ?, '123', ?)
+        ''', (id_uuid, nome, login, permissao))
+        conn.commit()
+        return True, "Usuário criado com sucesso!"
+    except Exception as e:
+        return False, str(e)
+    finally:
+        conn.close()
+
+def excluir_usuario(id_usuario):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id = ?", (id_usuario,))
+    conn.commit()
+    conn.close()
 
 def salvar_planilha_sql(df, lote_nome, svc_nome):
     conn = sqlite3.connect(DB_NAME)

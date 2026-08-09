@@ -94,10 +94,18 @@
 <body>
 
     <div class="sidebar">
-        <div class="sidebar-brand">⚡ Análise SVC</div>
+        <div class="sidebar-brand">⚡ Analise SVC</div>
         <ul class="sidebar-menu">
-            <li class="menu-item" onclick="location.href='/'">← Voltar para Importação</li>
-            <li class="menu-item active">Análise por Diagrama</li>
+            {% if session.usuario_logado.permissao != 'consulta' %}
+            <li class="menu-item active" onclick="location.href='/'">Importar Planilha</li>
+            {% endif %}
+            <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
+            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            
+            {% if session.usuario_logado.permissao == 'adm' %}
+            <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
+            {% endif %}
+            
             <li class="menu-item" style="color: #ef4444; margin-top: 30px;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
         </ul>
     </div>
@@ -493,18 +501,25 @@
             }
 
             // TEXTO DE SUGESTÕES (Agora com a projeção calculada e o Botão)
+            const permissaoUser = "{{ session.usuario_logado.permissao }}";
             let suggestionsHTML = "";
             if (finalSwaps.length > 0) {
                 suggestionsHTML = `
                 <div class="painel-diagnostico">
                     <h4>🛠️ Sugestões de Diagnóstico - Fase ${faseLetra} (Diferencial de Capacitância Atual: ${tcVerdeStr})</h4>
                     <ul>
-                        ${finalSwaps.map(s => `
-                        <li>
-                            <span>🔄 Inverta <b>${s.c1}</b> <i>(${s.v1.toFixed(2)})</i> com <b>${s.c2}</b> <i>(${s.v2.toFixed(2)})</i>. 
-                            <span class="proj-verde">➔ Dif. Projetado: ${s.projVerde > 0 ? "+" : ""}${s.projVerde.toFixed(2).replace('.', ',')}</span></span>
-                            <button class="btn-swap" onclick="efetivarTroca('${s.c1}', '${s.c2}')">✔️ Realizar Troca</button>
-                        </li>`).join('')}
+                        ${finalSwaps.map(s => {
+                            let btnHtml = "";
+                            if (permissaoUser !== 'consulta') {
+                                btnHtml = `<button class="btn-swap" onclick="efetivarTroca('${s.c1}', '${s.c2}')">✔️ Realizar Troca</button>`;
+                            }
+                            return `
+                            <li>
+                                <span>🔄 Inverta <b>${s.c1}</b> <i>(${s.v1.toFixed(2)})</i> com <b>${s.c2}</b> <i>(${s.v2.toFixed(2)})</i>. 
+                                <span class="proj-verde">➔ Dif. Projetado: ${s.projVerde > 0 ? "+" : ""}${s.projVerde.toFixed(2).replace('.', ',')}</span></span>
+                                ${btnHtml}
+                            </li>`;
+                        }).join('')}
                     </ul>
                 </div>`;
             }

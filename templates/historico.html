@@ -54,14 +54,20 @@
 <body>
 
     <div class="sidebar">
-        <div class="sidebar-brand">⚡ Análise SVC</div>
+        <div class="sidebar-brand">⚡ Analise SVC</div>
         <ul class="sidebar-menu">
-            <li class="menu-item" onclick="location.href='/'">Importar Planilha</li>
-            <li class="menu-item active" onclick="location.href='/historico'">Histórico de Medições</li>
-            <li class="menu-item" onclick="location.href='/diagrama'">Ir para Diagramas →</li>
+            {% if session.usuario_logado.permissao != 'consulta' %}
+            <li class="menu-item active" onclick="location.href='/'">Importar Planilha</li>
+            {% endif %}
+            <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
+            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            
+            {% if session.usuario_logado.permissao == 'adm' %}
+            <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
+            {% endif %}
+            
             <li class="menu-item" style="color: #ef4444; margin-top: 30px;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
         </ul>
-        
     </div>
 
     <div class="main">
@@ -103,6 +109,9 @@
 
     <script>
         function carregarHistorico() {
+            const permissaoUser = "{{ session.usuario_logado.permissao }}";
+
+        function carregarHistorico() {
             fetch('/api/historico')
             .then(res => res.json())
             .then(dados => {
@@ -115,20 +124,25 @@
                 } else {
                     emptyMsg.style.display = "none";
                     dados.forEach(item => {
+                        let htmlBotoes = `<button class="btn-view" onclick="abrirDetalhes('${item.lote}', '${item.svc}')">👁️ Visualizar</button>`;
+                        
+                        // Oculta o botão Excluir de Operadores e Consultas
+                        if (permissaoUser === 'adm') {
+                            htmlBotoes += `<button class="btn-del" onclick="excluirLote('${item.lote}', '${item.svc}')">🗑️ Excluir</button>`;
+                        }
+
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td style="font-weight: bold;">${item.lote}</td>
                             <td><span style="background: #e0f2fe; color: #0284c7; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">${item.svc}</span></td>
                             <td>${item.qtd} medidos</td>
-                            <td style="text-align: right;">
-                                <button class="btn-view" onclick="abrirDetalhes('${item.lote}', '${item.svc}')">👁️ Visualizar</button>
-                                <button class="btn-del" onclick="excluirLote('${item.lote}', '${item.svc}')">🗑️ Excluir</button>
-                            </td>
+                            <td style="text-align: right;">${htmlBotoes}</td>
                         `;
                         tbody.appendChild(tr);
                     });
                 }
             });
+        }
         }
 
         function excluirLote(lote, svc) {

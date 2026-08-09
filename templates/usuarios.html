@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle de Acessos - Análise SVC</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { display: flex; background-color: #f4f4f4; color: #1e293b; min-height: 100vh;}
+
+        .sidebar { width: 260px; background: #0f172a; color: white; position: fixed; top:0; bottom:0; left:0; padding: 24px 0; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 100;}
+        .sidebar-brand { padding: 0 24px 24px 24px; font-size: 18px; font-weight: bold; border-bottom: 1px solid #334155; margin-bottom: 16px; }
+        .sidebar-menu { list-style: none; }
+        .menu-item { padding: 14px 24px; cursor: pointer; color: #cbd5e1; transition: 0.2s; font-size: 15px; }
+        .menu-item:hover, .menu-item.active { background: #1e293b; color: white; border-left: 4px solid #0ea5e9; }
+
+        .main { margin-left: 260px; width: calc(100% - 260px); padding: 40px; }
+        
+        .card { background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px;}
+        .form-row { display: flex; gap: 20px; margin-bottom: 20px; align-items: flex-end;}
+        .form-group { display: flex; flex-direction: column; gap: 8px; flex: 1;}
+        .form-group label { font-size: 12px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+        input[type="text"], select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; outline:none;}
+        
+        .btn { background: #0ea5e9; color: white; padding: 10px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: 0.2s; height: 40px;}
+        .btn:hover { background: #0284c7; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px;}
+        th { background: #f8fafc; color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 12px; }
+        
+        .btn-del { background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s;}
+        .btn-del:hover { background: #dc2626; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        
+        .badge-adm { background: #fef08a; color: #854d0e; }
+        .badge-operador { background: #bfdbfe; color: #1e3a8a; }
+        .badge-consulta { background: #e2e8f0; color: #475569; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-brand">⚡ Analise SVC</div>
+        <ul class="sidebar-menu">
+            {% if session.usuario_logado.permissao != 'consulta' %}
+            <li class="menu-item" onclick="location.href='/'">Importar Planilha</li>
+            {% endif %}
+            <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
+            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            
+            {% if session.usuario_logado.permissao == 'adm' %}
+            <li class="menu-item active" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
+            {% endif %}
+            
+            <li class="menu-item" style="color: #ef4444; margin-top: 30px;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
+        </ul>
+    </div>
+
+    <div class="main">
+        <h2 style="margin-bottom: 20px;">Cadastrar Novo Usuário</h2>
+        <div class="card">
+            <form id="formUsuario">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome Completo</label>
+                        <input type="text" id="nome" required placeholder="Ex: João Silva">
+                    </div>
+                    <div class="form-group">
+                        <label>Código do Usuário (Login)</label>
+                        <input type="text" id="login" required placeholder="Ex: joao.silva">
+                    </div>
+                    <div class="form-group">
+                        <label>Perfil de Acesso</label>
+                        <select id="permissao" required>
+                            <option value="operador">Operador (Importa e Simula)</option>
+                            <option value="consulta">Consulta (Apenas Visualização)</option>
+                            <option value="adm">Administrador (Acesso Total)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">➕ Cadastrar</button>
+                </div>
+                <small style="color: #64748b; font-style: italic;">*A senha inicial padrão para novos usuários será <b>123</b></small>
+            </form>
+        </div>
+
+        <h2 style="margin-bottom: 20px;">Usuários Cadastrados</h2>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Código (Login)</th>
+                        <th>Perfil</th>
+                        <th style="text-align: right;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-usuarios"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function carregarUsuarios() {
+            fetch('/api/usuarios')
+            .then(res => res.json())
+            .then(dados => {
+                const tbody = document.getElementById('tabela-usuarios');
+                tbody.innerHTML = '';
+                dados.forEach(u => {
+                    let badgeClass = u.permissao === 'adm' ? 'badge-adm' : (u.permissao === 'operador' ? 'badge-operador' : 'badge-consulta');
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-weight: bold;">${u.nome}</td>
+                            <td>${u.login}</td>
+                            <td><span class="badge ${badgeClass}">${u.permissao}</span></td>
+                            <td style="text-align: right;">
+                                <button class="btn-del" onclick="excluirUsuario('${u.id}', '${u.nome}')">🗑️ Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            });
+        }
+
+        document.getElementById('formUsuario').onsubmit = function(e) {
+            e.preventDefault();
+            fetch('/api/usuarios', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    nome: document.getElementById('nome').value,
+                    login: document.getElementById('login').value,
+                    permissao: document.getElementById('permissao').value
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.error) alert("❌ Erro: " + data.error);
+                else {
+                    alert("✔️ " + data.message);
+                    document.getElementById('formUsuario').reset();
+                    carregarUsuarios();
+                }
+            });
+        };
+
+        function excluirUsuario(id, nome) {
+            if(confirm(`Tem certeza que deseja remover o acesso de ${nome}?`)) {
+                fetch('/api/usuarios', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ id: id })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.error) alert("❌ Erro: " + data.error);
+                    else carregarUsuarios();
+                });
+            }
+        }
+
+        window.onload = carregarUsuarios;
+    </script>
+</body>
+</html>

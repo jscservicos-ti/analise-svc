@@ -34,11 +34,18 @@
 <body>
 
     <div class="sidebar">
-        <div class="sidebar-brand">⚡ Análise SVC</div>
+        <div class="sidebar-brand">⚡ Analise SVC</div>
         <ul class="sidebar-menu">
+            {% if session.usuario_logado.permissao != 'consulta' %}
             <li class="menu-item active" onclick="location.href='/'">Importar Planilha</li>
+            {% endif %}
             <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
-            <li class="menu-item" onclick="location.href='/diagrama'">Ir para Diagramas →</li>
+            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            
+            {% if session.usuario_logado.permissao == 'adm' %}
+            <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
+            {% endif %}
+            
             <li class="menu-item" style="color: #ef4444; margin-top: 30px;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
         </ul>
     </div>
