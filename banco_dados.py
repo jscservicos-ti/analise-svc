@@ -9,28 +9,35 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
+    # Tabela de usuários com suporte a sincronização
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id TEXT PRIMARY KEY,
             nome TEXT,
             login TEXT UNIQUE,
             senha TEXT,
-            permissao TEXT
+            permissao TEXT,
+            sincronizado INTEGER DEFAULT 0
         )
     ''')
     
-    # --- VACINA DE CORREÇÃO ---
-    # Transforma o usuário criado na versão anterior de 'admin' para 'adm'
+    # Vacina para garantir compatibilidade caso exista o perfil antigo 'admin'
     cursor.execute("UPDATE usuarios SET permissao = 'adm' WHERE permissao = 'admin'")
-    # --------------------------
     
+    # Adiciona a coluna 'sincronizado' caso a tabela seja antiga e não a possua
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN sincronizado INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass # Coluna já existe
+    
+    # Cria o usuário padrão se não existir nenhum
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
         id_admin = str(uuid.uuid4())
         cursor.execute('''
-            INSERT INTO usuarios (id, nome, login, senha, permissao)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (id_admin, 'Administrador', 'admin', 'admin123', 'adm'))
+            INSERT INTO usuarios (id, nome, login, senha, permissao, sincronizado)
+            VALUES (?, ?, ?, 'admin123', 'adm', 0)
+        ''', (id_admin, 'Administrador', 'admin'))
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS medicoes (
@@ -91,8 +98,8 @@ def criar_usuario(nome, login, permissao):
         
         id_uuid = str(uuid.uuid4())
         cursor.execute('''
-            INSERT INTO usuarios (id, nome, login, senha, permissao)
-            VALUES (?, ?, ?, '123', ?)
+            INSERT INTO usuarios (id, nome, login, senha, permissao, sincronizado)
+            VALUES (?, ?, ?, '123', ?, 0)
         ''', (id_uuid, nome, login, permissao))
         conn.commit()
         return True, "Usuário criado com sucesso!"
@@ -235,6 +242,8 @@ def buscar_logs_troca(lote, svc):
     conn.close()
     return dados
 
+# --- MOTOR DE SINCRONIZAÇÃO EDGE-TO-CLOUD ATUALIZADO ---
+
 def obter_dados_nao_sincronizados():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
@@ -243,11 +252,13 @@ def obter_dados_nao_sincronizados():
     medicoes = [dict(row) for row in cursor.fetchall()]
     cursor.execute("SELECT * FROM registro_trocas WHERE sincronizado = 0")
     trocas = [dict(row) for row in cursor.fetchall()]
+    cursor.execute("SELECT * FROM usuarios WHERE sincronizado = 0")
+    usuarios = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return {"medicoes": medicoes, "trocas": trocas}
+    return {"medicoes": medicoes, "trocas": trocas, "usuarios": usuarios}
 
-def marcar_como_sincronizados(medicoes_ids, trocas_ids):
-    if not medicoes_ids and not trocas_ids: return
+def marcar_como_sincronizados(medicoes_ids, trocas_ids, usuarios_ids):
+    if not medicoes_ids and not trocas_ids and not usuarios_ids: return
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     if medicoes_ids:
@@ -256,6 +267,9 @@ def marcar_como_sincronizados(medicoes_ids, trocas_ids):
     if trocas_ids:
         placeholders = ','.join(['?'] * len(trocas_ids))
         cursor.execute(f"UPDATE registro_trocas SET sincronizado = 1 WHERE id IN ({placeholders})", trocas_ids)
+    if usuarios_ids:
+        placeholders = ','.join(['?'] * len(usuarios_ids))
+        cursor.execute(f"UPDATE usuarios SET sincronizado = 1 WHERE id IN ({placeholders})", usuarios_ids)
     conn.commit()
     conn.close()
 
@@ -267,8 +281,10 @@ def obter_todos_dados_nuvem():
     medicoes = [dict(row) for row in cursor.fetchall()]
     cursor.execute("SELECT * FROM registro_trocas")
     trocas = [dict(row) for row in cursor.fetchall()]
+    cursor.execute("SELECT * FROM usuarios")
+    usuarios = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return {"medicoes": medicoes, "trocas": trocas}
+    return {"medicoes": medicoes, "trocas": trocas, "usuarios": usuarios}
 
 def mesclar_dados_recebidos(dados):
     conn = sqlite3.connect(DB_NAME)
@@ -287,6 +303,13 @@ def mesclar_dados_recebidos(dados):
             (id, lote, svc, harmonica, cap1, cap2, data_troca, sincronizado)
             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
         ''', (t['id'], t['lote'], t['svc'], t['harmonica'], t['cap1'], t['cap2'], t['data_troca']))
+        
+    for u in dados.get("usuarios", []):
+        cursor.execute('''
+            INSERT OR REPLACE INTO usuarios 
+            (id, nome, login, senha, permissao, sincronizado)
+            VALUES (?, ?, ?, ?, ?, 1)
+        ''', (u['id'], u['nome'], u['login'], u['senha'], u['permissao']))
         
     conn.commit()
     conn.close()

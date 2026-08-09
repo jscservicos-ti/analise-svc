@@ -7,6 +7,8 @@ import urllib.request
 import json
 import sys
 import os
+import webbrowser
+import threading
 
 # Função para localizar arquivos (templates) tanto no Python quanto no Executável (.exe)
 def resource_path(relative_path):
@@ -192,26 +194,30 @@ def get_logs_trocas():
 @app.route('/api/sync/executar', methods=['POST'])
 @login_required
 def executar_sincronizacao():
-    if not SERVIDOR_NUVEM_URL: return jsonify({"error": "URL não configurada."}), 400
+    if not SERVIDOR_NUVEM_URL:
+        return jsonify({"error": "URL não configurada."}), 400
+
     try:
         dados_locais = banco_dados.obter_dados_nao_sincronizados()
         ids_med = [m['id'] for m in dados_locais['medicoes']]
         ids_trc = [t['id'] for t in dados_locais['trocas']]
+        ids_usr = [u['id'] for u in dados_locais['usuarios']]
 
-        if ids_med or ids_trc:
+        if ids_med or ids_trc or ids_usr:
             req = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/receber", method="POST")
             req.add_header('Content-Type', 'application/json')
             dados_bytes = json.dumps(dados_locais).encode('utf-8')
             with urllib.request.urlopen(req, data=dados_bytes, timeout=15) as res:
                 if res.status == 200:
-                    banco_dados.marcar_como_sincronizados(ids_med, ids_trc)
+                    banco_dados.marcar_como_sincronizados(ids_med, ids_trc, ids_usr)
 
         req_pull = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/enviar_tudo", method="GET")
         with urllib.request.urlopen(req_pull, timeout=15) as res_pull:
             dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
             
         banco_dados.mesclar_dados_recebidos(dados_nuvem)
-        return jsonify({"message": "Sincronizado com sucesso!"})
+
+        return jsonify({"message": "Sincronizado com sucesso (incluindo usuários e cadastros)!"})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Falha na comunicação: {str(e)}"}), 500
@@ -229,4 +235,11 @@ def enviar_para_borda():
     return jsonify(banco_dados.obter_todos_dados_nuvem())
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    # Agenda a abertura automática do navegador padrão após 1 segundo
+    def abrir_navegador():
+        webbrowser.open('http://127.0.0.1:5000')
+
+    threading.Timer(1.0, abrir_navegador).start()
+
+    # Roda o servidor de forma limpa e sem travamentos de debug
+    app.run(debug=False, port=5000, host='127.0.0.1')
