@@ -13,7 +13,7 @@ banco_dados.init_db()
 # Se for rodar no Notebook, digite o IP ou Domínio do seu Ubuntu Server abaixo.
 # Se for rodar no Ubuntu Server, deixe vazio ("").
 # ==============================================================================
-SERVIDOR_NUVEM_URL = "" 
+SERVIDOR_NUVEM_URL = "https://svc.jscsaude.com.br"
 
 @app.route('/')
 def index():
