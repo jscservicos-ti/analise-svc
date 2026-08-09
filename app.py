@@ -5,8 +5,19 @@ import banco_dados
 import traceback
 import urllib.request
 import json
+import sys
+import os
 
-app = Flask(__name__)
+# Função para localizar arquivos (templates) tanto no Python quanto no Executável (.exe)
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+# Inicializa o Flask apontando explicitamente para a pasta de templates correta
+app = Flask(__name__, template_folder=resource_path('templates'))
 app.secret_key = 'jsc_secreta_2026_seguranca_maxima'
 
 banco_dados.init_db()
