@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Importar Medições - Hospital Dia</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { display: flex; background-color: #f4f4f4; color: #1e293b; min-height: 100vh;}
+
+        .sidebar { width: 260px; background: #0f172a; color: white; position: fixed; top:0; bottom:0; left:0; padding: 24px 0; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 100;}
+        .sidebar-brand { padding: 0 24px 24px 24px; font-size: 18px; font-weight: bold; border-bottom: 1px solid #334155; margin-bottom: 16px; }
+        .sidebar-menu { list-style: none; }
+        .menu-item { padding: 14px 24px; cursor: pointer; color: #cbd5e1; transition: 0.2s; font-size: 15px; }
+        .menu-item:hover, .menu-item.active { background: #1e293b; color: white; border-left: 4px solid #0ea5e9; }
+
+        .main { margin-left: 260px; width: calc(100% - 260px); padding: 40px; }
+        
+        .card { background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); max-width: 800px;}
+        .form-row { display: flex; gap: 20px; margin-bottom: 20px; align-items: flex-end;}
+        .form-group { display: flex; flex-direction: column; gap: 8px; flex: 1;}
+        .form-group label { font-size: 12px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+        
+        input[type="text"], select, input[type="file"] { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; outline:none;}
+        input[type="file"] { padding: 7px 12px; background: #f8fafc;}
+        
+        .btn { background: #0ea5e9; color: white; padding: 10px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: 0.2s; height: 40px;}
+        .btn:hover { background: #0284c7; }
+        
+        #feedback { margin-top: 20px; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 14px; display: none;}
+        .success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;}
+        .error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;}
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-brand">⚡ Análise SVC</div>
+        <ul class="sidebar-menu">
+            <li class="menu-item active" onclick="location.href='/'">Importar Planilha</li>
+            <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
+            <li class="menu-item" onclick="location.href='/diagrama'">Ir para Diagramas →</li>
+        </ul>
+    </div>
+
+    <div class="main">
+        <h2 style="margin-bottom: 20px;">Importar Dados de Campo</h2>
+        
+        <div class="card">
+            <form id="uploadForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome do Lote (Ex: Agosto/2026)</label>
+                        <input type="text" id="lote" name="lote" placeholder="Digite um nome identificador..." required>
+                    </div>
+                    <div class="form-group">
+                        <label>Alvo da Importação</label>
+                        <select id="svc" name="svc">
+                            <option value="SVC1">SVC1</option>
+                            <option value="SVC2">SVC2</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Arquivo (Excel ou CSV)</label>
+                        <input type="file" id="file" name="file" accept=".txt,.xls,.xlsx,.csv" required>
+                    </div>
+                    <button type="submit" class="btn" id="btnSubmit">Processar e Importar</button>
+                </div>
+            </form>
+            
+            <div id="feedback"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            const feedback = document.getElementById('feedback');
+            
+            btn.innerText = "Processando...";
+            btn.disabled = true;
+            feedback.style.display = "none";
+            
+            let formData = new FormData(this);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                feedback.style.display = "block";
+                if(data.error) {
+                    feedback.className = "error";
+                    feedback.innerText = "❌ Erro: " + data.error;
+                } else {
+                    feedback.className = "success";
+                    feedback.innerText = "✓ Sucesso: " + data.message;
+                    document.getElementById('uploadForm').reset();
+                }
+            })
+            .catch(error => {
+                feedback.style.display = "block";
+                feedback.className = "error";
+                feedback.innerText = "❌ Falha na conexão com o servidor.";
+            })
+            .finally(() => {
+                btn.innerText = "Processar e Importar";
+                btn.disabled = false;
+            });
+        };
+    </script>
+</body>
+</html>
