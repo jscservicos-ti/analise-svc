@@ -53,7 +53,8 @@
             {% if session.usuario_logado.permissao == 'adm' %}
             <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
             {% endif %}
-            
+            <!-- Botão Novo de Sincronização -->
+            <li class="menu-item" style="color: #10b981; font-weight: bold; margin-top: 15px;" onclick="forcarSincronizacao()">🔄 Sincronizar Agora</li>
             <li class="menu-item" style="color: #ef4444; margin-top: 30px;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
         </ul>
     </div>
@@ -238,6 +239,23 @@
         }
 
         window.onload = carregarHistorico;
+    </script>
+    <script>
+        function forcarSincronizacao() {
+            if(!confirm("Deseja sincronizar os dados com o servidor em nuvem agora?")) return;
+            
+            fetch('/api/sync/executar', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if(data.error) {
+                    alert("Erro ao sincronizar: " + data.error);
+                } else {
+                    alert("✅ " + data.message);
+                    location.reload(); // Recarrega a página para mostrar os dados novos
+                }
+            })
+            .catch(err => alert("Sem conexão com o servidor. Verifique a internet."));
+        }
     </script>
 </body>
 </html>

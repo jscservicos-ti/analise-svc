@@ -28,20 +28,38 @@ banco_dados.init_db()
 SERVIDOR_NUVEM_URL = "https://svc.jscsaude.com.br"
 
 # ==============================================================================
-# SINCRONIZAÇÃO AUTOMÁTICA NA INICIALIZAÇÃO (PULL DA NUVEM)
+# SINCRONIZAÇÃO AUTOMÁTICA NA INICIALIZAÇÃO (BIDIRECIONAL: PUSH E PULL)
 # ==============================================================================
 def sincronizar_ao_iniciar():
-    """Baixa automaticamente usuários e dados da nuvem assim que o app abre"""
+    """Envia dados offline para a nuvem e depois baixa as novidades assim que o app abre"""
     if not SERVIDOR_NUVEM_URL:
         return
     try:
+        # 1. PUSH: Procura dados gerados localmente (offline) e envia para o servidor
+        dados_locais = banco_dados.obter_dados_nao_sincronizados()
+        ids_med = [m['id'] for m in dados_locais.get('medicoes', [])]
+        ids_trc = [t['id'] for t in dados_locais.get('trocas', [])]
+        ids_usr = [u['id'] for u in dados_locais.get('usuarios', [])]
+
+        if ids_med or ids_trc or ids_usr:
+            req_push = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/receber", method="POST")
+            req_push.add_header('Content-Type', 'application/json')
+            dados_bytes = json.dumps(dados_locais).encode('utf-8')
+            with urllib.request.urlopen(req_push, data=dados_bytes, timeout=15) as res:
+                if res.status == 200:
+                    # Se o servidor recebeu com sucesso, marca os dados locais como sincronizados
+                    banco_dados.marcar_como_sincronizados(ids_med, ids_trc, ids_usr)
+                    print("Upload de dados offline realizado com sucesso!")
+
+        # 2. PULL: Baixa o banco de dados completo e mais recente do Servidor Linux
         req_pull = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/enviar_tudo", method="GET")
-        with urllib.request.urlopen(req_pull, timeout=8) as res_pull:
+        with urllib.request.urlopen(req_pull, timeout=15) as res_pull:
             dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
             banco_dados.mesclar_dados_recebidos(dados_nuvem)
-            print("Sincronizacao automatica inicial realizada com sucesso!")
+            print("Download de dados da nuvem realizado com sucesso!")
+            
     except Exception as e:
-        print("Modo offline: Nao foi possivel conectar ao servidor na inicializacao.", str(e))
+        print("Modo offline: Sem internet ou servidor inacessivel. Trabalhando localmente.", str(e))
 
 # ==============================================================================
 # SISTEMA DE SEGURANÇA E LOGIN
