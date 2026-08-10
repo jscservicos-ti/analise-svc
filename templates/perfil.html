@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Meu Perfil - Análise SVC</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { display: flex; background-color: #f4f4f4; color: #1e293b; min-height: 100vh;}
+        .sidebar { width: 260px; background: #0f172a; color: white; position: fixed; top:0; bottom:0; left:0; padding: 24px 0; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 100;}
+        .sidebar-brand { padding: 0 24px 24px 24px; font-size: 18px; font-weight: bold; border-bottom: 1px solid #334155; margin-bottom: 16px; }
+        .sidebar-menu { list-style: none; }
+        .menu-item { padding: 14px 24px; cursor: pointer; color: #cbd5e1; transition: 0.2s; font-size: 15px; }
+        .menu-item:hover, .menu-item.active { background: #1e293b; color: white; border-left: 4px solid #0ea5e9; }
+        .main { margin-left: 260px; width: calc(100% - 260px); padding: 40px; }
+        .card { background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); max-width: 500px; margin-top: 20px;}
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .form-group label { font-size: 13px; font-weight: bold; color: #64748b; }
+        input { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; outline: none; }
+        .btn { background: #0ea5e9; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; }
+        .btn:hover { background: #0284c7; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-brand">⚡ Analise SVC</div>
+        <ul class="sidebar-menu">
+            {% if session.usuario_logado.permissao != 'consulta' %}
+            <li class="menu-item" onclick="location.href='/'">Importar Planilha</li>
+            {% endif %}
+            <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
+            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            {% if session.usuario_logado.permissao == 'adm' %}
+            <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
+            {% endif %}
+            <li class="menu-item active" onclick="location.href='/perfil'">🔑 Meu Perfil</li>
+            <li class="menu-item" style="color: #10b981; font-weight: bold; margin-top: 15px;" onclick="forcarSincronizacao()">🔄 Sincronizar Agora</li>
+            <li class="menu-item" style="color: #ef4444;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
+        </ul>
+    </div>
+
+    <div class="main">
+        <h2>Meu Perfil</h2>
+        <div class="card">
+            <h3 style="margin-bottom: 20px; color: #0f172a;">Alterar Senha de Acesso</h3>
+            
+            <div class="form-group">
+                <label>Nova Senha</label>
+                <input type="password" id="novaSenha" placeholder="Digite a nova senha">
+            </div>
+            
+            <div class="form-group">
+                <label>Confirmar Nova Senha</label>
+                <input type="password" id="confirmaSenha" placeholder="Repita a nova senha">
+            </div>
+            
+            <button class="btn" onclick="salvarSenha()">Salvar Nova Senha</button>
+        </div>
+    </div>
+
+    <script>
+        function salvarSenha() {
+            const nova = document.getElementById('novaSenha').value;
+            const conf = document.getElementById('confirmaSenha').value;
+            
+            if (nova === "" || conf === "") { alert("Preencha todos os campos."); return; }
+            if (nova !== conf) { alert("As senhas não conferem!"); return; }
+            
+            fetch('/api/usuarios/alterar_senha', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ nova_senha: nova })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.error) alert("Erro: " + data.error);
+                else {
+                    alert(data.message);
+                    document.getElementById('novaSenha').value = '';
+                    document.getElementById('confirmaSenha').value = '';
+                }
+            });
+        }
+        function forcarSincronizacao() {
+            if(!confirm("Deseja sincronizar os dados com o servidor em nuvem agora?")) return;
+            fetch('/api/sync/executar', { method: 'POST' }).then(res => res.json()).then(data => {
+                if(data.error) alert("Erro: " + data.error); else alert("✅ " + data.message);
+            }).catch(err => alert("Sem conexão com o servidor."));
+        }
+    </script>
+</body>
+</html>

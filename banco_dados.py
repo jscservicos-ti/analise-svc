@@ -9,7 +9,6 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # Tabela de usuários com suporte a sincronização
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id TEXT PRIMARY KEY,
@@ -21,16 +20,13 @@ def init_db():
         )
     ''')
     
-    # Vacina para garantir compatibilidade caso exista o perfil antigo 'admin'
     cursor.execute("UPDATE usuarios SET permissao = 'adm' WHERE permissao = 'admin'")
     
-    # Adiciona a coluna 'sincronizado' caso a tabela seja antiga e não a possua
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN sincronizado INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
-        pass # Coluna já existe
+        pass 
     
-    # Cria o usuário padrão se não existir nenhum
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
         id_admin = str(uuid.uuid4())
@@ -115,32 +111,38 @@ def excluir_usuario(id_usuario):
     conn.commit()
     conn.close()
 
+# --- NOVAS FUNÇÕES DE SENHA ---
+def alterar_senha(id_usuario, nova_senha):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET senha = ?, sincronizado = 0 WHERE id = ?", (nova_senha, id_usuario))
+    conn.commit()
+    conn.close()
+
+def resetar_senha(id_usuario):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET senha = '123', sincronizado = 0 WHERE id = ?", (id_usuario,))
+    conn.commit()
+    conn.close()
+# ------------------------------
+
 def salvar_planilha_sql(df, lote_nome, svc_nome):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    print(f"DEBUG: Iniciando processamento do lote {lote_nome}, SVC {svc_nome}")
-    print(f"DEBUG: Total de linhas detectadas no arquivo: {len(df)}")
-    
-    # Remove antigo antes de gravar
     cursor.execute("DELETE FROM medicoes WHERE lote = ? AND svc = ?", (lote_nome, svc_nome))
     cursor.execute("DELETE FROM registro_trocas WHERE lote = ? AND svc = ?", (lote_nome, svc_nome))
     
-    contador_inseridos = 0
-    
     for index, row in df.iterrows():
-        # Vamos imprimir a primeira coluna para ver o que ele está lendo
         serial_raw = str(row.iloc[0]).strip()
-        
         if not serial_raw or serial_raw == 'nan' or serial_raw == 'None':
-            print(f"DEBUG: Linha {index} ignorada (Serial vazio ou nan)")
             continue
             
         id_uuid = str(uuid.uuid4())
         serial = serial_raw
         harmonica = serial.split('-')[0] if '-' in serial else ""
         
-        # Validação dos números
         try:
             ref_raw = str(row.iloc[2]).replace(',', '.')
             referencia = float(ref_raw) if ref_raw and ref_raw != 'nan' else 0.0
@@ -154,14 +156,11 @@ def salvar_planilha_sql(df, lote_nome, svc_nome):
                 INSERT INTO medicoes (id, lote, svc, harmonica, serial, referencia, medicao_1, analise, sincronizado)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
             ''', (id_uuid, lote_nome, svc_nome, harmonica, serial, referencia, medicao_1, analise))
-            contador_inseridos += 1
-        except Exception as e:
-            print(f"DEBUG: Erro ao processar linha {index}: {e}")
+        except Exception:
             continue
         
     conn.commit()
     conn.close()
-    print(f"DEBUG: Processamento concluído. Total inserido: {contador_inseridos}")
 
 def listar_lotes_salvos():
     conn = sqlite3.connect(DB_NAME)
@@ -257,8 +256,6 @@ def buscar_logs_troca(lote, svc):
     dados = [dict(zip(cols, row)) for row in cursor.fetchall()]
     conn.close()
     return dados
-
-# --- MOTOR DE SINCRONIZAÇÃO EDGE-TO-CLOUD ATUALIZADO ---
 
 def obter_dados_nao_sincronizados():
     conn = sqlite3.connect(DB_NAME)

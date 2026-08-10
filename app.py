@@ -8,10 +8,11 @@ import json
 import sys
 import os
 import threading
+
 try:
     import webview
 except ImportError:
-    pass  # Ignora silenciosamente no servidor Linux, pois lá não precisamos de janelas
+    pass  # Ignora no servidor Ubuntu
 
 def resource_path(relative_path):
     try:
@@ -27,15 +28,10 @@ banco_dados.init_db()
 
 SERVIDOR_NUVEM_URL = "https://svc.jscsaude.com.br"
 
-# ==============================================================================
-# SINCRONIZAÇÃO AUTOMÁTICA NA INICIALIZAÇÃO (BIDIRECIONAL: PUSH E PULL)
-# ==============================================================================
 def sincronizar_ao_iniciar():
-    """Envia dados offline para a nuvem e depois baixa as novidades assim que o app abre"""
     if not SERVIDOR_NUVEM_URL:
         return
     try:
-        # 1. PUSH: Procura dados gerados localmente (offline) e envia para o servidor
         dados_locais = banco_dados.obter_dados_nao_sincronizados()
         ids_med = [m['id'] for m in dados_locais.get('medicoes', [])]
         ids_trc = [t['id'] for t in dados_locais.get('trocas', [])]
@@ -47,11 +43,9 @@ def sincronizar_ao_iniciar():
             dados_bytes = json.dumps(dados_locais).encode('utf-8')
             with urllib.request.urlopen(req_push, data=dados_bytes, timeout=15) as res:
                 if res.status == 200:
-                    # Se o servidor recebeu com sucesso, marca os dados locais como sincronizados
                     banco_dados.marcar_como_sincronizados(ids_med, ids_trc, ids_usr)
                     print("Upload de dados offline realizado com sucesso!")
 
-        # 2. PULL: Baixa o banco de dados completo e mais recente do Servidor Linux
         req_pull = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/enviar_tudo", method="GET")
         with urllib.request.urlopen(req_pull, timeout=15) as res_pull:
             dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
@@ -61,9 +55,6 @@ def sincronizar_ao_iniciar():
     except Exception as e:
         print("Modo offline: Sem internet ou servidor inacessivel. Trabalhando localmente.", str(e))
 
-# ==============================================================================
-# SISTEMA DE SEGURANÇA E LOGIN
-# ==============================================================================
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -93,10 +84,6 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-
-# ==============================================================================
-# ROTAS PROTEGIDAS DO SISTEMA
-# ==============================================================================
 @app.route('/')
 @login_required
 def index():
@@ -120,6 +107,11 @@ def usuarios():
     if session['usuario_logado']['permissao'] != 'adm':
         return redirect(url_for('historico'))
     return render_template('usuarios.html')
+
+@app.route('/perfil')
+@login_required
+def perfil():
+    return render_template('perfil.html')
 
 @app.route('/api/usuarios', methods=['GET'])
 @login_required
@@ -149,6 +141,28 @@ def delete_usuario():
         return jsonify({"error": "Você não pode excluir seu próprio usuário."}), 400
     banco_dados.excluir_usuario(data['id'])
     return jsonify({"message": "Usuário excluído!"})
+
+# --- NOVAS ROTAS DE SENHA ---
+@app.route('/api/usuarios/alterar_senha', methods=['POST'])
+@login_required
+def api_alterar_senha():
+    data = request.json
+    nova_senha = data.get('nova_senha')
+    if not nova_senha:
+        return jsonify({"error": "A senha não pode ser vazia."}), 400
+    
+    banco_dados.alterar_senha(session['usuario_logado']['id'], nova_senha)
+    return jsonify({"message": "Senha atualizada com sucesso!"})
+
+@app.route('/api/usuarios/resetar_senha', methods=['POST'])
+@login_required
+def api_resetar_senha():
+    if session['usuario_logado']['permissao'] != 'adm':
+        return jsonify({"error": "Acesso negado."}), 403
+    data = request.json
+    banco_dados.resetar_senha(data['id'])
+    return jsonify({"message": "Senha do usuário resetada para '123' com sucesso!"})
+# -----------------------------
 
 @app.route('/upload', methods=['POST'])
 @app.route('/api/upload', methods=['POST'])
@@ -227,18 +241,15 @@ def get_dados_completos():
 def get_logs_trocas():
     return jsonify(banco_dados.buscar_logs_troca(request.args.get('lote'), request.args.get('svc')))
 
-# ==============================================================================
-# ENDPOINTS DE SINCRONIZAÇÃO
-# ==============================================================================
 @app.route('/api/sync/executar', methods=['POST'])
 @login_required
 def executar_sincronizacao():
     if not SERVIDOR_NUVEM_URL: return jsonify({"error": "URL não configurada."}), 400
     try:
         dados_locais = banco_dados.obter_dados_nao_sincronizados()
-        ids_med = [m['id'] for m in dados_locais['medicoes']]
-        ids_trc = [t['id'] for t in dados_locais['trocas']]
-        ids_usr = [u['id'] for u in dados_locais['usuarios']]
+        ids_med = [m['id'] for m in dados_locais.get('medicoes', [])]
+        ids_trc = [t['id'] for t in dados_locais.get('trocas', [])]
+        ids_usr = [u['id'] for u in dados_locais.get('usuarios', [])]
 
         if ids_med or ids_trc or ids_usr:
             req = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/receber", method="POST")
@@ -251,8 +262,8 @@ def executar_sincronizacao():
         req_pull = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/enviar_tudo", method="GET")
         with urllib.request.urlopen(req_pull, timeout=15) as res_pull:
             dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
+            banco_dados.mesclar_dados_recebidos(dados_nuvem)
             
-        banco_dados.mesclar_dados_recebidos(dados_nuvem)
         return jsonify({"message": "Sincronizado com sucesso!"})
     except Exception as e:
         traceback.print_exc()
@@ -270,23 +281,9 @@ def receber_da_borda():
 def enviar_para_borda():
     return jsonify(banco_dados.obter_todos_dados_nuvem())
 
-@app.route('/debug/contar')
-def debug_contar():
-    conn = sqlite3.connect(banco_dados.DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM medicoes")
-    total = cursor.fetchone()[0]
-    conn.close()
-    return f"Total de linhas no banco '{banco_dados.DB_NAME}': {total}"
-
-# ==============================================================================
-# INICIALIZAÇÃO COM JANELA NATIVA E ENCERRAMENTO AUTOMÁTICO
-# ==============================================================================
 if __name__ == '__main__':
-    # 1. Executa a sincronização automática silenciosa na abertura
     sincronizar_ao_iniciar()
 
-    # 2. Sobe o servidor Flask em uma thread de fundo
     def run_flask():
         app.run(debug=False, port=5000, host='127.0.0.1', use_reloader=False)
 
@@ -294,6 +291,6 @@ if __name__ == '__main__':
     t.daemon = True
     t.start()
 
-    # 3. Abre a janela nativa do aplicativo. Ao clicar no 'X', o Python morre e limpa a memória.
-    webview.create_window("Analise SVC - Sistema Local", "http://127.0.0.1:5000", width=1280, height=800)
-    webview.start()
+    if 'webview' in sys.modules:
+        webview.create_window("Analise SVC - Sistema Local", "http://127.0.0.1:5000", width=1280, height=800)
+        webview.start()

@@ -97,21 +97,16 @@
 </head>
 <body>
 
-    <div class="sidebar">
+<div class="sidebar">
         <div class="sidebar-brand">⚡ Analise SVC</div>
         <ul class="sidebar-menu">
-            {% if session.usuario_logado.permissao != 'consulta' %}
             <li class="menu-item" onclick="location.href='/'">Importar Planilha</li>
-            {% endif %}
             <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
-            <li class="menu-item active" onclick="location.href='/diagrama'">Análise por Diagrama</li>
-            
-            {% if session.usuario_logado.permissao == 'adm' %}
-            <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
-            {% endif %}
-            <!-- Botão Novo de Sincronização -->
+            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            <li class="menu-item active" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
+            <li class="menu-item" onclick="location.href='/perfil'">🔑 Meu Perfil</li>
             <li class="menu-item" style="color: #10b981; font-weight: bold; margin-top: 15px;" onclick="forcarSincronizacao()">🔄 Sincronizar Agora</li>
-            <li class="menu-item" style="color: #ef4444; margin-top: 30px;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
+            <li class="menu-item" style="color: #ef4444;" onclick="location.href='/logout'">🚪 Sair do Sistema</li>
         </ul>
     </div>
 
