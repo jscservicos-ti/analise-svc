@@ -8,7 +8,10 @@ import json
 import sys
 import os
 import threading
-import webview
+try:
+    import webview
+except ImportError:
+    pass  # Ignora silenciosamente no servidor Linux, pois lá não precisamos de janelas
 
 def resource_path(relative_path):
     try:
