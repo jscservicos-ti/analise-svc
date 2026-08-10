@@ -7,10 +7,9 @@ import urllib.request
 import json
 import sys
 import os
-import webbrowser
 import threading
+import webview
 
-# Função para localizar arquivos (templates) tanto no Python quanto no Executável (.exe)
 def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
@@ -18,7 +17,6 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# Inicializa o Flask apontando explicitamente para a pasta de templates correta
 app = Flask(__name__, template_folder=resource_path('templates'))
 app.secret_key = 'jsc_secreta_2026_seguranca_maxima'
 
@@ -26,10 +24,28 @@ banco_dados.init_db()
 
 SERVIDOR_NUVEM_URL = "https://svc.jscsaude.com.br"
 
+# ==============================================================================
+# SINCRONIZAÇÃO AUTOMÁTICA NA INICIALIZAÇÃO (PULL DA NUVEM)
+# ==============================================================================
+def sincronizar_ao_iniciar():
+    """Baixa automaticamente usuários e dados da nuvem assim que o app abre"""
+    if not SERVIDOR_NUVEM_URL:
+        return
+    try:
+        req_pull = urllib.request.Request(f"{SERVIDOR_NUVEM_URL}/api/sync/enviar_tudo", method="GET")
+        with urllib.request.urlopen(req_pull, timeout=8) as res_pull:
+            dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
+            banco_dados.mesclar_dados_recebidos(dados_nuvem)
+            print("Sincronizacao automatica inicial realizada com sucesso!")
+    except Exception as e:
+        print("Modo offline: Nao foi possivel conectar ao servidor na inicializacao.", str(e))
+
+# ==============================================================================
+# SISTEMA DE SEGURANÇA E LOGIN
+# ==============================================================================
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Validação extra: se o cookie antigo estiver salvo como string, limpa para evitar erros
         if 'usuario_logado' not in session or not isinstance(session['usuario_logado'], dict):
             session.clear()
             return redirect(url_for('login'))
@@ -56,10 +72,13 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+
+# ==============================================================================
+# ROTAS PROTEGIDAS DO SISTEMA
+# ==============================================================================
 @app.route('/')
 @login_required
 def index():
-    # Bloqueia perfil Consulta de ver a tela de importação
     if session['usuario_logado']['permissao'] == 'consulta':
         return redirect(url_for('historico'))
     return render_template('index.html')
@@ -74,7 +93,6 @@ def diagrama():
 def historico():
     return render_template('historico.html')
 
-# --- ROTAS DE GESTÃO DE USUÁRIOS ---
 @app.route('/usuarios')
 @login_required
 def usuarios():
@@ -111,7 +129,6 @@ def delete_usuario():
     banco_dados.excluir_usuario(data['id'])
     return jsonify({"message": "Usuário excluído!"})
 
-# --- ROTAS DE DADOS COM BLOQUEIOS DE PERFIL ---
 @app.route('/upload', methods=['POST'])
 @app.route('/api/upload', methods=['POST'])
 @app.route('/importar', methods=['POST'])
@@ -119,7 +136,6 @@ def delete_usuario():
 def upload_file():
     if session['usuario_logado']['permissao'] == 'consulta':
         return jsonify({"error": "Acesso negado para o seu perfil."}), 403
-    
     try:
         if len(request.files) == 0: return jsonify({"error": "Nenhum arquivo"}), 400
         file_key = list(request.files.keys())[0]
@@ -156,7 +172,7 @@ def get_diagrama_dados():
 @login_required
 def realizar_troca():
     if session['usuario_logado']['permissao'] == 'consulta':
-        return jsonify({"error": "O perfil de Consulta não pode realizar alterações no diagrama."}), 403
+        return jsonify({"error": "O perfil de Consulta não pode realizar alterações."}), 403
     data = request.json
     try:
         banco_dados.efetivar_troca(data['lote'], data['svc'], data['harmonica'], data['cap1'], data['cap2'])
@@ -190,13 +206,13 @@ def get_dados_completos():
 def get_logs_trocas():
     return jsonify(banco_dados.buscar_logs_troca(request.args.get('lote'), request.args.get('svc')))
 
-# --- ENDPOINTS DE SINCRONIZAÇÃO ---
+# ==============================================================================
+# ENDPOINTS DE SINCRONIZAÇÃO
+# ==============================================================================
 @app.route('/api/sync/executar', methods=['POST'])
 @login_required
 def executar_sincronizacao():
-    if not SERVIDOR_NUVEM_URL:
-        return jsonify({"error": "URL não configurada."}), 400
-
+    if not SERVIDOR_NUVEM_URL: return jsonify({"error": "URL não configurada."}), 400
     try:
         dados_locais = banco_dados.obter_dados_nao_sincronizados()
         ids_med = [m['id'] for m in dados_locais['medicoes']]
@@ -216,8 +232,7 @@ def executar_sincronizacao():
             dados_nuvem = json.loads(res_pull.read().decode('utf-8'))
             
         banco_dados.mesclar_dados_recebidos(dados_nuvem)
-
-        return jsonify({"message": "Sincronizado com sucesso (incluindo usuários e cadastros)!"})
+        return jsonify({"message": "Sincronizado com sucesso!"})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Falha na comunicação: {str(e)}"}), 500
@@ -234,12 +249,30 @@ def receber_da_borda():
 def enviar_para_borda():
     return jsonify(banco_dados.obter_todos_dados_nuvem())
 
+@app.route('/debug/contar')
+def debug_contar():
+    conn = sqlite3.connect(banco_dados.DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM medicoes")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return f"Total de linhas no banco '{banco_dados.DB_NAME}': {total}"
+
+# ==============================================================================
+# INICIALIZAÇÃO COM JANELA NATIVA E ENCERRAMENTO AUTOMÁTICO
+# ==============================================================================
 if __name__ == '__main__':
-    # Agenda a abertura automática do navegador padrão após 1 segundo
-    def abrir_navegador():
-        webbrowser.open('http://127.0.0.1:5000')
+    # 1. Executa a sincronização automática silenciosa na abertura
+    sincronizar_ao_iniciar()
 
-    threading.Timer(1.0, abrir_navegador).start()
+    # 2. Sobe o servidor Flask em uma thread de fundo
+    def run_flask():
+        app.run(debug=False, port=5000, host='127.0.0.1', use_reloader=False)
 
-    # Roda o servidor de forma limpa e sem travamentos de debug
-    app.run(debug=False, port=5000, host='127.0.0.1')
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    # 3. Abre a janela nativa do aplicativo. Ao clicar no 'X', o Python morre e limpa a memória.
+    webview.create_window("Analise SVC - Sistema Local", "http://127.0.0.1:5000", width=1280, height=800)
+    webview.start()

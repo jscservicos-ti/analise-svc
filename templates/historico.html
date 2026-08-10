@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Histórico de Medições</title>
+    <title>Histórico de Medições - Análise SVC</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
         body { display: flex; background-color: #f4f4f4; color: #1e293b; min-height: 100vh;}
@@ -14,41 +14,29 @@
         .menu-item:hover, .menu-item.active { background: #1e293b; color: white; border-left: 4px solid #0ea5e9; }
 
         .main { margin-left: 260px; width: calc(100% - 260px); padding: 40px; }
-        
-        .header-action { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;}
-        .btn-sync { background: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight:bold; transition: 0.2s; display: flex; align-items: center; gap: 8px;}
-        .btn-sync:hover { background: #059669; }
-        .btn-sync:disabled { background: #94a3b8; cursor: not-allowed; }
-
         .card { background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 14px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px;}
         th { background: #f8fafc; color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 12px; }
-        td { color: #334155; }
         
-        .btn-view { background: #0ea5e9; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight:bold; transition: 0.2s; margin-right: 8px;}
-        .btn-view:hover { background: #0284c7; }
+        .btn-view { background: #10b981; color: white; padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; font-weight: bold;}
+        .btn-view:hover { background: #059669; }
         
-        .btn-del { background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s;}
+        .btn-diag { background: #0ea5e9; color: white; padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; font-weight: bold; margin-left: 8px;}
+        .btn-diag:hover { background: #0284c7; }
+        
+        .btn-del { background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; margin-left: 8px;}
         .btn-del:hover { background: #dc2626; }
-        
-        #empty-msg { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; display: none;}
 
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fff; margin: 5% auto; padding: 30px; border-radius: 8px; width: 80%; max-width: 800px; position: relative;}
-        .close-btn { position: absolute; right: 20px; top: 15px; font-size: 28px; cursor: pointer; color: #64748b; transition: 0.2s;}
-        .close-btn:hover { color: #000; }
-        
-        .tabs { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 15px; margin-top: 20px;}
-        .tab-link { background: none; border: none; padding: 10px 20px; font-size: 15px; font-weight: bold; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;}
-        .tab-link.active { color: #0ea5e9; border-bottom: 3px solid #0ea5e9;}
-        
-        .tab-content { display: none; max-height: 450px; overflow-y: auto;}
-        .tab-content.active { display: block; }
-        
-        .table-modal th { position: sticky; top: 0; background: #f8fafc; }
-        .badge { background: #ffcc00; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #000;}
+        /* Estilos do Modal de Detalhes */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fff; padding: 30px; border-radius: 10px; width: 85%; max-width: 900px; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.5);}
+        .close { color: #64748b; position: absolute; top: 20px; right: 30px; font-size: 28px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .close:hover { color: #0f172a; }
+        .tabela-interna { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; border: 1px solid #e2e8f0;}
+        .tabela-interna th, .tabela-interna td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        .tabela-interna th { background: #f1f5f9; color: #475569; position: sticky; top: 0;}
     </style>
 </head>
 <body>
@@ -57,9 +45,9 @@
         <div class="sidebar-brand">⚡ Analise SVC</div>
         <ul class="sidebar-menu">
             {% if session.usuario_logado.permissao != 'consulta' %}
-            <li class="menu-item active" onclick="location.href='/'">Importar Planilha</li>
+            <li class="menu-item" onclick="location.href='/'">Importar Planilha</li>
             {% endif %}
-            <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
+            <li class="menu-item active" onclick="location.href='/historico'">Histórico de Medições</li>
             <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
             
             {% if session.usuario_logado.permissao == 'adm' %}
@@ -71,45 +59,65 @@
     </div>
 
     <div class="main">
-        <div class="header-action">
-            <h2>Histórico de Importações</h2>
-            <button class="btn-sync" id="btnSync" onclick="iniciarSincronizacao()">☁️ Sincronizar com Servidor</button>
-        </div>
-        
+        <h2 style="margin-bottom: 20px;">Histórico de Lotes Importados</h2>
         <div class="card">
             <table>
                 <thead>
                     <tr>
-                        <th>Lote Identificador</th>
-                        <th>Subestação (SVC)</th>
-                        <th>Qtd. Capacitores</th>
+                        <th>Nome do Lote</th>
+                        <th>Alvo (SVC)</th>
+                        <th>Total de Itens</th>
                         <th style="text-align: right;">Ações</th>
                     </tr>
                 </thead>
-                <tbody id="tabela-corpo"></tbody>
+                <tbody id="tabela-corpo">
+                    <!-- Preenchido via JavaScript -->
+                </tbody>
             </table>
-            <div id="empty-msg">Nenhuma medição encontrada no banco de dados.</div>
+            <p id="empty-msg" style="margin-top: 20px; color: #64748b; display: none;">Nenhum lote importado até o momento.</p>
         </div>
     </div>
 
+    <!-- Modal de Detalhes (Restaurado) -->
     <div id="modalDetalhes" class="modal">
-       <div class="modal-content">
-          <span class="close-btn" onclick="fecharModal()">&times;</span>
-          <h2 id="modalTitle" style="color: #0f172a;">Detalhes</h2>
-          
-          <div class="tabs">
-             <button class="tab-link active" onclick="abrirAba('tabDados', event)">📊 Valores Atuais</button>
-             <button class="tab-link" onclick="abrirAba('tabTrocas', event)">🔄 Histórico de Trocas</button>
-          </div>
-          
-          <div id="tabDados" class="tab-content active"></div>
-          <div id="tabTrocas" class="tab-content"></div>
-       </div>
+        <div class="modal-content">
+            <span class="close" onclick="fecharModal()">&times;</span>
+            <h3 id="modal-titulo" style="margin-bottom: 25px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Detalhes do Lote</h3>
+            
+            <h4 style="color: #0284c7; margin-bottom: 10px;">📉 Medições Importadas</h4>
+            <div style="max-height: 250px; overflow-y: auto; margin-bottom: 30px; border-radius: 6px; box-shadow: inset 0 0 5px rgba(0,0,0,0.05);">
+                <table class="tabela-interna">
+                    <thead>
+                        <tr>
+                            <th>Fase</th>
+                            <th>Serial</th>
+                            <th>Referência</th>
+                            <th>Medição Atual</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-medicoes-detalhe"></tbody>
+                </table>
+            </div>
+
+            <h4 style="color: #d97706; margin-bottom: 10px;">🔄 Histórico de Trocas Realizadas</h4>
+            <div style="max-height: 200px; overflow-y: auto; border-radius: 6px; box-shadow: inset 0 0 5px rgba(0,0,0,0.05);">
+                <table class="tabela-interna">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora da Troca</th>
+                            <th>Fase</th>
+                            <th>Capacitor 1 (Origem)</th>
+                            <th>Capacitor 2 (Destino)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-trocas-detalhe"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script>
-        function carregarHistorico() {
-            const permissaoUser = "{{ session.usuario_logado.permissao }}";
+        const permissaoUser = "{{ session.usuario_logado.permissao }}";
 
         function carregarHistorico() {
             fetch('/api/historico')
@@ -119,120 +127,114 @@
                 const emptyMsg = document.getElementById('empty-msg');
                 tbody.innerHTML = '';
                 
-                if(dados.length === 0) {
+                if(!dados || dados.length === 0) {
                     emptyMsg.style.display = "block";
                 } else {
                     emptyMsg.style.display = "none";
                     dados.forEach(item => {
-                        let htmlBotoes = `<button class="btn-view" onclick="abrirDetalhes('${item.lote}', '${item.svc}')">👁️ Visualizar</button>`;
+                        const urlDiagrama = `/diagrama?lote=${encodeURIComponent(item.lote)}&svc=${encodeURIComponent(item.svc)}`;
                         
-                        // Oculta o botão Excluir de Operadores e Consultas
+                        // Botões restaurados e independentes
+                        let htmlBotoes = `
+                            <button class="btn-view" onclick="abrirDetalhes('${item.lote}', '${item.svc}')">👁️ Ver Medições e Trocas</button>
+                            <a href="${urlDiagrama}" class="btn-diag">📊 Ir para Diagrama</a>
+                        `;
+                        
                         if (permissaoUser === 'adm') {
                             htmlBotoes += `<button class="btn-del" onclick="excluirLote('${item.lote}', '${item.svc}')">🗑️ Excluir</button>`;
                         }
 
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
-                            <td style="font-weight: bold;">${item.lote}</td>
+                            <td style="font-weight: bold; color: #0f172a;">${item.lote}</td>
                             <td><span style="background: #e0f2fe; color: #0284c7; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">${item.svc}</span></td>
-                            <td>${item.qtd} medidos</td>
-                            <td style="text-align: right;">${htmlBotoes}</td>
+                            <td>${item.qtd} capacitores</td>
+                            <td style="text-align: right; white-space: nowrap;">${htmlBotoes}</td>
                         `;
                         tbody.appendChild(tr);
                     });
                 }
+            })
+            .catch(error => {
+                console.error("Erro ao carregar o histórico:", error);
             });
         }
+
+        // --- FUNÇÕES DO MODAL RESTAURADAS ---
+        function abrirDetalhes(lote, svc) {
+            document.getElementById('modal-titulo').innerText = `Detalhes do Lote: ${lote} - ${svc}`;
+            document.getElementById('modalDetalhes').style.display = 'flex';
+
+            // Buscar medições brutas
+            fetch(`/api/lote/dados_completos?lote=${encodeURIComponent(lote)}&svc=${encodeURIComponent(svc)}`)
+            .then(res => res.json())
+            .then(dados => {
+                const tbody = document.getElementById('tabela-medicoes-detalhe');
+                tbody.innerHTML = '';
+                if(dados.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Nenhuma medição encontrada.</td></tr>';
+                } else {
+                    dados.forEach(d => {
+                        tbody.innerHTML += `<tr>
+                            <td><b>${d.harmonica}</b></td>
+                            <td>${d.serial}</td>
+                            <td>${d.referencia}</td>
+                            <td>${d.medicao_1}</td>
+                        </tr>`;
+                    });
+                }
+            });
+
+            // Buscar histórico de trocas
+            fetch(`/api/lote/logs_trocas?lote=${encodeURIComponent(lote)}&svc=${encodeURIComponent(svc)}`)
+            .then(res => res.json())
+            .then(dados => {
+                const tbody = document.getElementById('tabela-trocas-detalhe');
+                tbody.innerHTML = '';
+                if(dados.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Nenhuma troca registrada para este lote.</td></tr>';
+                } else {
+                    dados.forEach(d => {
+                        tbody.innerHTML += `<tr>
+                            <td>${d.data_troca}</td>
+                            <td><b>${d.harmonica}</b></td>
+                            <td>${d.cap1}</td>
+                            <td>${d.cap2}</td>
+                        </tr>`;
+                    });
+                }
+            });
         }
 
+        function fecharModal() {
+            document.getElementById('modalDetalhes').style.display = 'none';
+        }
+        
+        // Fechar modal ao clicar fora da caixa branca
+        window.onclick = function(event) {
+            const modal = document.getElementById('modalDetalhes');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+        // ------------------------------------
+
         function excluirLote(lote, svc) {
-            if(confirm(`ATENÇÃO: Deseja excluir todas as medições e históricos de troca do lote "${lote}"?`)) {
+            if(confirm(`Deseja realmente excluir o lote "${lote}" (${svc})? Todos os dados e trocas serão perdidos.`)) {
                 fetch('/api/lotes', {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ lote: lote, svc: svc })
                 })
                 .then(res => res.json())
                 .then(data => {
                     if(data.error) alert("Erro: " + data.error);
-                    else carregarHistorico(); 
+                    else carregarHistorico();
+                })
+                .catch(error => {
+                    console.error("Erro ao excluir lote:", error);
                 });
             }
-        }
-
-        function iniciarSincronizacao() {
-            const btn = document.getElementById('btnSync');
-            btn.innerHTML = "⏳ Sincronizando...";
-            btn.disabled = true;
-
-            fetch('/api/sync/executar', { method: 'POST' })
-            .then(res => res.json())
-            .then(data => {
-                if(data.error) {
-                    alert("Atenção: " + data.error);
-                } else {
-                    alert("Sucesso: " + data.message);
-                    carregarHistorico(); // Atualiza a tabela com o que baixou da nuvem
-                }
-            })
-            .catch(err => alert("Falha ao comunicar com o servidor. Verifique sua rede."))
-            .finally(() => {
-                btn.innerHTML = "☁️ Sincronizar com Servidor";
-                btn.disabled = false;
-            });
-        }
-
-        function abrirAba(nomeAba, event) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
-            
-            document.getElementById(nomeAba).classList.add('active');
-            if(event) event.currentTarget.classList.add('active');
-            else document.querySelector('.tab-link').classList.add('active'); 
-        }
-
-        function fecharModal() { document.getElementById('modalDetalhes').style.display = 'none'; }
-
-        function abrirDetalhes(lote, svc) {
-            document.getElementById('modalTitle').innerText = `${lote} - ${svc}`;
-            document.getElementById('modalDetalhes').style.display = 'block';
-            abrirAba('tabDados');
-
-            fetch(`/api/lote/dados_completos?lote=${encodeURIComponent(lote)}&svc=${encodeURIComponent(svc)}`)
-            .then(res => res.json())
-            .then(dados => {
-                let html = '<table class="table-modal" style="width:100%; text-align:center;"><tr><th>Harmônica</th><th>Serial</th><th>Ref (µF)</th><th>Valor (µF)</th></tr>';
-                dados.forEach(d => {
-                    html += `<tr>
-                                <td><span class="badge">${d.harmonica}</span></td>
-                                <td><b>${d.serial}</b></td>
-                                <td>${d.referencia}</td>
-                                <td style="color:#cc0000; font-weight:bold;">${d.medicao_1}</td>
-                             </tr>`;
-                });
-                html += '</table>';
-                document.getElementById('tabDados').innerHTML = html;
-            });
-
-            fetch(`/api/lote/logs_trocas?lote=${encodeURIComponent(lote)}&svc=${encodeURIComponent(svc)}`)
-            .then(res => res.json())
-            .then(dados => {
-                if(dados.length === 0) {
-                    document.getElementById('tabTrocas').innerHTML = '<div style="padding: 40px; text-align:center; color:#94a3b8;"><i>Nenhuma troca registrada para esta medição até o momento.</i></div>';
-                    return;
-                }
-                let html = '<table class="table-modal" style="width:100%; text-align:center;"><tr><th>Data e Hora</th><th>Harmônica</th><th>Capacitor 1</th><th>Capacitor 2</th></tr>';
-                dados.forEach(d => {
-                    html += `<tr>
-                                <td style="color:#64748b; font-size:13px;">${d.data_troca}</td>
-                                <td><span class="badge">${d.harmonica}</span></td>
-                                <td><b>${d.cap1}</b></td>
-                                <td><b>${d.cap2}</b></td>
-                             </tr>`;
-                });
-                html += '</table>';
-                document.getElementById('tabTrocas').innerHTML = html;
-            });
         }
 
         window.onload = carregarHistorico;

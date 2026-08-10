@@ -28,15 +28,20 @@
         .btn { background: #0ea5e9; color: white; padding: 10px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: 0.2s; }
         .btn:hover { background: #0284c7; }
 
+        .zoom-controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn-zoom { background: #334155; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s; }
+        .btn-zoom:hover { background: #0f172a; }
+
         .fase-container { display: flex; flex-direction: column; margin-bottom: 40px; background: #fff; padding: 30px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .fase-diagrama { display: flex; position: relative; overflow-x: auto; padding-bottom: 20px;}
+        .diagrama-scroll-area { overflow-x: auto; padding-bottom: 20px; width: 100%; border-bottom: 1px solid #f1f5f9; margin-bottom: 15px;}
+        .fase-diagrama { display: flex; position: relative; transform-origin: top left; }
         
-        .fase-input { display: flex; flex-direction: column; justify-content: center; align-items: center; border-right: 1px solid #000; padding-right: 10px; margin-right: 10px; min-width: 90px; position: relative;}
+        .fase-input { display: flex; flex-direction: column; justify-content: center; align-items: center; border-right: 1px solid #000; padding-right: 10px; margin-right: 10px; min-width: 90px; position: relative; flex-shrink: 0;}
         .fase-title { font-weight: bold; font-size: 14px; margin-bottom: 20px; }
         .fase-u { font-size: 13px; margin-bottom: 2px; font-weight: bold;}
         .main-line { height: 1.5px; background: #000; width: 30px; position: absolute; right: 0; top: 50%; }
 
-        .circuito-core { display: flex; flex-direction: column; justify-content: space-around; gap: 50px;}
+        .circuito-core { display: flex; flex-direction: column; justify-content: space-around; gap: 50px; flex-shrink: 0;}
         
         .ramo { display: flex; align-items: center; } 
         .node { font-weight: bold; font-size: 14px; padding: 0 4px; }
@@ -62,7 +67,7 @@
         .meas-bar { width: 100%; border-left: 1.5px solid #000; border-right: 1.5px solid #000; border-bottom: 1.5px solid #000; height: 5px; }
         .meas-box { margin-left: 5px; margin-bottom: -1px; font-size: 13px;}
 
-        .results-panel { border-left: 1px solid transparent; padding-left: 10px; display: flex; position: relative; min-width: 250px;}
+        .results-panel { border-left: 1px solid transparent; padding-left: 10px; padding-right: 30px; display: flex; position: relative; min-width: 250px; flex-shrink: 0;}
         .tc-container { position: absolute; left: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 40px; }
         .tc-wire { width: 1.5px; background: #000; height: 50px; }
         .tc-symbol { width: 18px; height: 26px; border: 1.5px solid #000; border-radius: 8px; background: #fff; position: relative; margin: -2px 0;}
@@ -79,8 +84,7 @@
         .res-text { font-size: 12px; margin-top: 6px; color: #000; }
         .tc-box { text-align: right; margin-top: 15px; width: 170px; }
 
-        /* Estilos do Painel de Diagnóstico e do Botão de Troca */
-        .painel-diagnostico { margin-top: 15px; padding: 15px 20px; background: #f0fdf4; border-left: 5px solid #16a34a; border-radius: 6px; font-size: 14px; }
+        .painel-diagnostico { padding: 15px 20px; background: #f0fdf4; border-left: 5px solid #16a34a; border-radius: 6px; font-size: 14px; }
         .painel-diagnostico h4 { color: #166534; margin-bottom: 12px; font-size: 15px; }
         .painel-diagnostico ul { list-style: none; }
         .painel-diagnostico li { margin-bottom: 10px; color: #1e293b; display: flex; align-items: center;}
@@ -97,10 +101,10 @@
         <div class="sidebar-brand">⚡ Analise SVC</div>
         <ul class="sidebar-menu">
             {% if session.usuario_logado.permissao != 'consulta' %}
-            <li class="menu-item active" onclick="location.href='/'">Importar Planilha</li>
+            <li class="menu-item" onclick="location.href='/'">Importar Planilha</li>
             {% endif %}
             <li class="menu-item" onclick="location.href='/historico'">Histórico de Medições</li>
-            <li class="menu-item" onclick="location.href='/diagrama'">Análise por Diagrama</li>
+            <li class="menu-item active" onclick="location.href='/diagrama'">Análise por Diagrama</li>
             
             {% if session.usuario_logado.permissao == 'adm' %}
             <li class="menu-item" onclick="location.href='/usuarios'">👥 Controle de Acessos</li>
@@ -131,7 +135,6 @@
                     <option value="2H">2H (72 Capacitores)</option>
                 </select>
             </div>
-            <!-- O Dropdown de Tipo de Medida foi removido daqui para limpar a interface -->
             <div class="form-group" style="margin-left: 20px;">
                 <label>Tensão de Linha (UN)</label>
                 <input type="number" id="input_UN" value="34500" style="width: 100px; text-align: center; font-weight: bold;">
@@ -139,21 +142,43 @@
             <button class="btn" onclick="buscarEConstruirDiagrama()">Calcular Diagnóstico</button>
         </div>
 
+        <div class="zoom-controls">
+            <button onclick="mudarZoom(0.1)" class="btn-zoom">➕ Aumentar Zoom</button>
+            <button onclick="mudarZoom(-0.1)" class="btn-zoom">➖ Diminuir Zoom</button>
+            <button onclick="resetarZoom()" class="btn-zoom">🔄 Tamanho Original</button>
+        </div>
+        
         <div id="diagramas-container">
             <div style="text-align: center; color: #64748b; margin-top: 50px;">
                 <i>Selecione os parâmetros e clique em "Calcular Diagnóstico" para gerar o balanço da fase.</i>
             </div>
         </div>
+
     </div>
 
     <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramLote = urlParams.get('lote');
+        const paramSvc = urlParams.get('svc');
+
         window.onload = function() {
             fetch('/api/lotes')
             .then(res => res.json())
             .then(lotes => {
                 const select = document.getElementById('filtroLote');
                 select.innerHTML = '<option value="">Selecione a medição importada...</option>';
-                lotes.forEach(l => { select.innerHTML += `<option value="${l}">${l}</option>`; });
+                lotes.forEach(l => { 
+                    let isSelected = (l === paramLote) ? "selected" : "";
+                    select.innerHTML += `<option value="${l}" ${isSelected}>${l}</option>`; 
+                });
+                
+                if(paramSvc) {
+                    document.getElementById('filtroSvc').value = paramSvc;
+                }
+
+                if (paramLote && paramSvc) {
+                    buscarEConstruirDiagrama();
+                }
             });
         };
 
@@ -237,7 +262,6 @@
             return pool;
         }
 
-        // --- MÁGICA DA ENGENHARIA (CONEXÃO JS -> PYTHON) ---
         function efetivarTroca(cap1, cap2) {
             const lote = document.getElementById('filtroLote').value;
             const svc = document.getElementById('filtroSvc').value;
@@ -258,7 +282,6 @@
             .then(data => {
                 if(data.error) alert("Erro: " + data.error);
                 else {
-                    // Após salvar no SQL, ele simula um "F5" suave, recalculando a tela com os novos dados
                     buscarEConstruirDiagrama(); 
                 }
             });
@@ -268,7 +291,7 @@
             const lote = document.getElementById('filtroLote').value;
             const svc = document.getElementById('filtroSvc').value;
             const harm = document.getElementById('filtroHarmonica').value;
-            const tipoMedida = 'analise'; // Agora fixado internamente
+            const tipoMedida = 'analise'; 
             const un = parseFloat(document.getElementById('input_UN').value) || 0;
 
             if (!lote) { alert("Selecione um Lote na lista superior!"); return; }
@@ -309,6 +332,8 @@
                 }
                 container.innerHTML += buildFaseHTML(fase.letra, uFase, capList, dbData, tipoMedida, harm, matrizBase);
             });
+            
+            aplicarZoom();
         }
 
         function buildFaseHTML(faseLetra, uFase, capList, dbData, tipoMedida, harm, matrizBase) {
@@ -355,12 +380,11 @@
             let tcAmareloStr = tcAmarelo > 0 ? tcAmarelo.toFixed(2).replace('.', ',') : "####";
             let tcVerdeStr = (aeSup > 0 || aeInf > 0) ? tcVerde.toFixed(2).replace('.', ',') : "0,00";
 
-            // MÓDULO DE DIAGNÓSTICO (Com Projeção de Recálculo Integrada)
+            // NOVO MOTOR DE OTIMIZAÇÃO DE TROCAS
             let allPairs = [];
+            let currentAbsVerde = Math.abs(tcVerde);
 
             for(let gIndex = 0; gIndex < 8; gIndex++) {
-                let isSup = (gIndex < 4);
-
                 matrizBase[gIndex].forEach((idx, i) => {
                     if(idx >= capList.length) return;
                     
@@ -368,28 +392,27 @@
                     let cap1 = serial1.split('-')[1]; 
                     let v1 = capValues[gIndex][i];
                     
-                    if (v1 > 0 && Math.abs(tcVerde) >= 0.01) {
-                        let target1 = isSup ? (v1 + tcVerde) : (v1 - tcVerde);
+                    // Somente busca trocas se houver um desequilíbrio relevante
+                    if (v1 > 0 && currentAbsVerde >= 0.05) {
                         let pool = getAllowedSwapPool(harm, cap1);
 
                         pool.forEach(cap2 => {
                             let serial2 = harm + "-" + cap2;
                             if(dbData[serial2] && dbData[serial2][tipoMedida] !== null) {
                                 let v2 = parseFloat(dbData[serial2][tipoMedida]);
-                                if(v2 > 0) {
-                                    let error = Math.abs(v2 - target1);
-                                    if(error <= 0.20) {
-                                        // MÁGICA: SIMULA A INVERSÃO ANTES DELA ACONTECER PARA MOSTRAR A PROJEÇÃO
-                                        let gIndex2 = -1;
-                                        for(let r=0; r<8; r++) {
-                                            matrizBase[r].forEach(i2 => {
-                                                if(capList[i2] === serial2) gIndex2 = r;
-                                            });
-                                        }
-                                        
+                                if(v2 > 0 && v1 !== v2) { // Ignora se forem exatamente iguais
+                                    let gIndex2 = -1;
+                                    for(let r=0; r<8; r++) {
+                                        matrizBase[r].forEach(i2 => {
+                                            if(capList[i2] === serial2) gIndex2 = r;
+                                        });
+                                    }
+                                    
+                                    // Trocar dentro do mesmo grupo não muda nada. Apenas simula se for entre grupos diferentes.
+                                    if (gIndex !== gIndex2 && gIndex2 !== -1) {
                                         let newSums = [...blockSums];
                                         newSums[gIndex] = newSums[gIndex] - v1 + v2;
-                                        if(gIndex2 !== -1) newSums[gIndex2] = newSums[gIndex2] - v2 + v1;
+                                        newSums[gIndex2] = newSums[gIndex2] - v2 + v1;
                                         
                                         let invS = 0, invI = 0;
                                         for(let k=0;k<4;k++) if(newSums[k]>0) invS += 1/newSums[k];
@@ -397,14 +420,18 @@
                                         let aeS = invS > 0 ? 1/invS : 0;
                                         let aeI = invI > 0 ? 1/invI : 0;
                                         
-                                        // O Novo Diferencial se a pessoa clicar no botão
                                         let projVerde = ((aeS + aeI)/2 - aeS) / 0.065;
+                                        let newAbsVerde = Math.abs(projVerde);
 
-                                        let pairId = [cap1, cap2].sort().join("-");
-                                        allPairs.push({ 
-                                            id: pairId, c1: cap1, v1: v1, c2: cap2, v2: v2, 
-                                            err: error, projVerde: projVerde 
-                                        });
+                                        // CRITÉRIO DE SUCESSO: Se a troca diminuir o erro absoluto de forma relevante, ela é válida!
+                                        if (newAbsVerde < currentAbsVerde - 0.05) {
+                                            let pairId = [cap1, cap2].sort().join("-");
+                                            allPairs.push({ 
+                                                id: pairId, c1: cap1, v1: v1, c2: cap2, v2: v2, 
+                                                projVerde: projVerde,
+                                                absVerde: newAbsVerde
+                                            });
+                                        }
                                     }
                                 }
                             }
@@ -415,7 +442,9 @@
 
             let uniquePairsList = [];
             let seenPairIds = new Set();
-            allPairs.sort((a,b) => a.err - b.err); 
+            
+            // Ordena buscando as opções que deixam a diferença o mais perto possível de zero
+            allPairs.sort((a,b) => a.absVerde - b.absVerde); 
 
             allPairs.forEach(p => {
                 if(!seenPairIds.has(p.id)) {
@@ -437,11 +466,11 @@
 
             let swapMap = {};
             finalSwaps.forEach(p => {
-                swapMap[p.c1] = p.c2;
-                swapMap[p.c2] = p.c1;
+                // Guarda quem vai chegar e qual será o novo valor naquele ponto
+                swapMap[p.c1] = { targetCap: p.c2, incomingVal: p.v2 };
+                swapMap[p.c2] = { targetCap: p.c1, incomingVal: p.v1 };
             });
 
-            // RENDERIZAÇÃO
             let htmlCapsPerBlock = [];
             for(let gIndex = 0; gIndex < 8; gIndex++) {
                 let capsHtml = "";
@@ -456,12 +485,14 @@
                         let valNum = capValues[gIndex][i];
                         let valStr = valNum > 0 ? valNum.toFixed(2).replace('.', ',') : "0,00";
                         
-                        let bestMatch = swapMap[nomeBase] || "";
+                        let bestMatchData = swapMap[nomeBase];
+                        let bestMatch = "";
                         let refStr = "";
 
-                        if (bestMatch !== "") {
-                            let targetRef = (gIndex < 4) ? (valNum + tcVerde) : (valNum - tcVerde);
-                            refStr = targetRef.toFixed(2).replace('.', ',');
+                        // NOVA RENDERIZAÇÃO: Mostra o real valor que vai chegar se a pessoa aceitar a troca
+                        if (bestMatchData) {
+                            bestMatch = bestMatchData.targetCap;
+                            refStr = bestMatchData.incomingVal.toFixed(2).replace('.', ',');
                         }
 
                         capsHtml += `
@@ -500,7 +531,6 @@
                 else voltDrops.push(0);
             }
 
-            // TEXTO DE SUGESTÕES (Agora com a projeção calculada e o Botão)
             const permissaoUser = "{{ session.usuario_logado.permissao }}";
             let suggestionsHTML = "";
             if (finalSwaps.length > 0) {
@@ -516,7 +546,7 @@
                             return `
                             <li>
                                 <span>🔄 Inverta <b>${s.c1}</b> <i>(${s.v1.toFixed(2)})</i> com <b>${s.c2}</b> <i>(${s.v2.toFixed(2)})</i>. 
-                                <span class="proj-verde">➔ Dif. Projetado: ${s.projVerde > 0 ? "+" : ""}${s.projVerde.toFixed(2).replace('.', ',')}</span></span>
+                                <span class="proj-verde">➔ Dif. Projetado após troca: ${s.projVerde > 0 ? "+" : ""}${s.projVerde.toFixed(2).replace('.', ',')}</span></span>
                                 ${btnHtml}
                             </li>`;
                         }).join('')}
@@ -557,53 +587,55 @@
 
             return `
             <div class="fase-container">
-                <div class="fase-diagrama">
-                    <div class="badge-harmonica">${harm}</div>
-                    <div class="fase-input">
-                        <div class="fase-title">FASE "${faseLetra}"</div>
-                        <div class="fase-u">U<sub>${faseLetra}N</sub> <span class="box-ylw">${uFase.toFixed(2).replace('.',',')}</span></div>
-                        <div class="main-line"></div>
-                        <div class="divisor-entrada"></div>
-                    </div>
-                    <div class="circuito-core">
-                        <div class="ramo">
-                            <div class="wire-h" style="margin-top: ${midTop}px;"></div><div class="node" style="margin-top: ${midTop - 8}px;">A</div> ${g0}
-                            <div class="node" style="margin-top: ${midTop - 8}px;">B</div> ${g1}
-                            <div class="node" style="margin-top: ${midTop - 8}px;">C</div> ${g2}
-                            <div class="node" style="margin-top: ${midTop - 8}px;">D</div> ${g3}
-                            <div class="node" style="margin-top: ${midTop - 8}px;">E</div><div class="wire-h" style="margin-top: ${midTop}px;"></div>
+                <div class="diagrama-scroll-area">
+                    <div class="fase-diagrama">
+                        <div class="badge-harmonica">${harm}</div>
+                        <div class="fase-input">
+                            <div class="fase-title">FASE "${faseLetra}"</div>
+                            <div class="fase-u">U<sub>${faseLetra}N</sub> <span class="box-ylw">${uFase.toFixed(2).replace('.',',')}</span></div>
+                            <div class="main-line"></div>
+                            <div class="divisor-entrada"></div>
                         </div>
-                        <div class="ramo">
-                            <div class="wire-h" style="margin-top: ${midBot}px;"></div><div class="node" style="margin-top: ${midBot - 8}px;">A'</div> ${g4}
-                            <div class="node" style="margin-top: ${midBot - 8}px;">B'</div> ${g5}
-                            <div class="node" style="margin-top: ${midBot - 8}px;">C'</div> ${g6}
-                            <div class="node" style="margin-top: ${midBot - 8}px;">D'</div> ${g7}
-                            <div class="node" style="margin-top: ${midBot - 8}px;">E'</div><div class="wire-h" style="margin-top: ${midBot}px;"></div>
-                        </div>
-                    </div>
-                    <div class="results-panel">
-                        <div class="divisor-saida"></div>
-                        <div class="tc-container">
-                            <div class="tc-text">TC DE NEUTRO</div>
-                            <div class="tc-wire"></div>
-                            <div class="tc-symbol"></div>
-                            <div class="tc-symbol"></div>
-                            <div class="tc-wire"></div>
-                        </div>
-                        <div class="end-wires">
-                            <div style="margin-top: ${midTop - 40}px;">
-                                <div class="res-row"><span>I =</span> <span class="box-ylw">${iSup.toFixed(2).replace('.',',')}(A)</span></div>
-                                <div class="res-text">${faseLetra} - E = ${aeSup.toFixed(2).replace('.',',')}</div>
-                                <div class="tc-box">
-                                    <span class="box-ylw">${tcAmareloStr}</span><br>
-                                    <span class="txt-grn" style="margin-right: 4px;">${tcVerdeStr}</span>
-                                </div>
+                        <div class="circuito-core">
+                            <div class="ramo">
+                                <div class="wire-h" style="margin-top: ${midTop}px;"></div><div class="node" style="margin-top: ${midTop - 8}px;">A</div> ${g0}
+                                <div class="node" style="margin-top: ${midTop - 8}px;">B</div> ${g1}
+                                <div class="node" style="margin-top: ${midTop - 8}px;">C</div> ${g2}
+                                <div class="node" style="margin-top: ${midTop - 8}px;">D</div> ${g3}
+                                <div class="node" style="margin-top: ${midTop - 8}px;">E</div><div class="wire-h" style="margin-top: ${midTop}px;"></div>
                             </div>
-                            <div style="margin-bottom: ${midBot - 30}px;">
-                                <div class="res-row"><span>I' =</span> <span class="box-ylw">${iInf.toFixed(2).replace('.',',')}(A)</span></div>
-                                <div class="res-text">${faseLetra}' - E' = ${aeInf.toFixed(2).replace('.',',')}</div>
-                                <div class="res-row txt-red" style="margin-top: 20px;"><span>Ceq. ${faseLetra} =</span> <span>${ceq.toFixed(2).replace('.',',')}</span></div>
-                                <div class="res-row" style="margin-top: 5px; font-weight: bold;"><span>I<sub>T</sub> =</span> <span class="box-ylw">${it.toFixed(2).replace('.',',')}(A)</span></div>
+                            <div class="ramo">
+                                <div class="wire-h" style="margin-top: ${midBot}px;"></div><div class="node" style="margin-top: ${midBot - 8}px;">A'</div> ${g4}
+                                <div class="node" style="margin-top: ${midBot - 8}px;">B'</div> ${g5}
+                                <div class="node" style="margin-top: ${midBot - 8}px;">C'</div> ${g6}
+                                <div class="node" style="margin-top: ${midBot - 8}px;">D'</div> ${g7}
+                                <div class="node" style="margin-top: ${midBot - 8}px;">E'</div><div class="wire-h" style="margin-top: ${midBot}px;"></div>
+                            </div>
+                        </div>
+                        <div class="results-panel">
+                            <div class="divisor-saida"></div>
+                            <div class="tc-container">
+                                <div class="tc-text">TC DE NEUTRO</div>
+                                <div class="tc-wire"></div>
+                                <div class="tc-symbol"></div>
+                                <div class="tc-symbol"></div>
+                                <div class="tc-wire"></div>
+                            </div>
+                            <div class="end-wires">
+                                <div style="margin-top: ${midTop - 40}px;">
+                                    <div class="res-row"><span>I =</span> <span class="box-ylw">${iSup.toFixed(2).replace('.',',')}(A)</span></div>
+                                    <div class="res-text">${faseLetra} - E = ${aeSup.toFixed(2).replace('.',',')}</div>
+                                    <div class="tc-box">
+                                        <span class="box-ylw">${tcAmareloStr}</span><br>
+                                        <span class="txt-grn" style="margin-right: 4px;">${tcVerdeStr}</span>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: ${midBot - 30}px;">
+                                    <div class="res-row"><span>I' =</span> <span class="box-ylw">${iInf.toFixed(2).replace('.',',')}(A)</span></div>
+                                    <div class="res-text">${faseLetra}' - E' = ${aeInf.toFixed(2).replace('.',',')}</div>
+                                    <div class="res-row txt-red" style="margin-top: 20px;"><span>Ceq. ${faseLetra} =</span> <span>${ceq.toFixed(2).replace('.',',')}</span></div>
+                                    <div class="res-row" style="margin-top: 5px; font-weight: bold;"><span>I<sub>T</sub> =</span> <span class="box-ylw">${it.toFixed(2).replace('.',',')}(A)</span></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -611,6 +643,24 @@
                 ${suggestionsHTML}
             </div>
             `;
+        }
+
+        let zoomLevel = 1.0;
+        function mudarZoom(delta) {
+            zoomLevel += delta;
+            if (zoomLevel < 0.3) zoomLevel = 0.3; 
+            if (zoomLevel > 3.0) zoomLevel = 3.0; 
+            aplicarZoom();
+        }
+        function resetarZoom() {
+            zoomLevel = 1.0;
+            aplicarZoom();
+        }
+        function aplicarZoom() {
+            const diagramas = document.querySelectorAll('.fase-diagrama');
+            diagramas.forEach(d => {
+                d.style.zoom = zoomLevel; 
+            });
         }
     </script>
 </body>

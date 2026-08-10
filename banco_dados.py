@@ -119,33 +119,49 @@ def salvar_planilha_sql(df, lote_nome, svc_nome):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
+    print(f"DEBUG: Iniciando processamento do lote {lote_nome}, SVC {svc_nome}")
+    print(f"DEBUG: Total de linhas detectadas no arquivo: {len(df)}")
+    
+    # Remove antigo antes de gravar
     cursor.execute("DELETE FROM medicoes WHERE lote = ? AND svc = ?", (lote_nome, svc_nome))
     cursor.execute("DELETE FROM registro_trocas WHERE lote = ? AND svc = ?", (lote_nome, svc_nome))
     
+    contador_inseridos = 0
+    
     for index, row in df.iterrows():
+        # Vamos imprimir a primeira coluna para ver o que ele está lendo
         serial_raw = str(row.iloc[0]).strip()
-        if not serial_raw or serial_raw == 'nan':
+        
+        if not serial_raw or serial_raw == 'nan' or serial_raw == 'None':
+            print(f"DEBUG: Linha {index} ignorada (Serial vazio ou nan)")
             continue
             
         id_uuid = str(uuid.uuid4())
         serial = serial_raw
         harmonica = serial.split('-')[0] if '-' in serial else ""
         
-        ref_raw = str(row.iloc[2]).replace(',', '.')
-        referencia = float(ref_raw) if ref_raw and ref_raw != 'nan' else None
-        
-        med_raw = str(row.iloc[3]).replace(',', '.')
-        medicao_1 = float(med_raw) if med_raw and med_raw != 'nan' else None
-        
-        analise = medicao_1
-        
-        cursor.execute('''
-            INSERT INTO medicoes (id, lote, svc, harmonica, serial, referencia, medicao_1, analise, sincronizado)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-        ''', (id_uuid, lote_nome, svc_nome, harmonica, serial, referencia, medicao_1, analise))
+        # Validação dos números
+        try:
+            ref_raw = str(row.iloc[2]).replace(',', '.')
+            referencia = float(ref_raw) if ref_raw and ref_raw != 'nan' else 0.0
+            
+            med_raw = str(row.iloc[3]).replace(',', '.')
+            medicao_1 = float(med_raw) if med_raw and med_raw != 'nan' else 0.0
+            
+            analise = medicao_1
+            
+            cursor.execute('''
+                INSERT INTO medicoes (id, lote, svc, harmonica, serial, referencia, medicao_1, analise, sincronizado)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+            ''', (id_uuid, lote_nome, svc_nome, harmonica, serial, referencia, medicao_1, analise))
+            contador_inseridos += 1
+        except Exception as e:
+            print(f"DEBUG: Erro ao processar linha {index}: {e}")
+            continue
         
     conn.commit()
     conn.close()
+    print(f"DEBUG: Processamento concluído. Total inserido: {contador_inseridos}")
 
 def listar_lotes_salvos():
     conn = sqlite3.connect(DB_NAME)
